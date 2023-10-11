@@ -48,6 +48,8 @@ int main(int argc, char **argv) {
 	//keep track of game state:
 	Game game;
 
+	game.spawn_ball();
+
 	while (true) {
 		static auto next_tick = std::chrono::steady_clock::now() + std::chrono::duration< double >(Game::Tick);
 		//process incoming data from clients until a tick has elapsed:
@@ -71,8 +73,14 @@ int main(int argc, char **argv) {
 				if (evt == Connection::OnOpen) {
 					//client connected:
 
-					//create some player info for them:
-					connection_to_player.emplace(c, game.spawn_player());
+					if(connection_to_player.size()>=2){
+						c->close();
+					}else{
+						//create some player info for them:
+						connection_to_player.emplace(c, game.spawn_player());
+					}
+
+
 
 				} else if (evt == Connection::OnClose) {
 					//client disconnected:

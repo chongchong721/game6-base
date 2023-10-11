@@ -147,36 +147,126 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 				glm::u8vec4(0xff, 0xff, 0xff, 0x00));
 		};
 
-		lines.draw(glm::vec3(Game::ArenaMin.x, Game::ArenaMin.y, 0.0f), glm::vec3(Game::ArenaMax.x, Game::ArenaMin.y, 0.0f), glm::u8vec4(0xff, 0x00, 0xff, 0xff));
-		lines.draw(glm::vec3(Game::ArenaMin.x, Game::ArenaMax.y, 0.0f), glm::vec3(Game::ArenaMax.x, Game::ArenaMax.y, 0.0f), glm::u8vec4(0xff, 0x00, 0xff, 0xff));
-		lines.draw(glm::vec3(Game::ArenaMin.x, Game::ArenaMin.y, 0.0f), glm::vec3(Game::ArenaMin.x, Game::ArenaMax.y, 0.0f), glm::u8vec4(0xff, 0x00, 0xff, 0xff));
-		lines.draw(glm::vec3(Game::ArenaMax.x, Game::ArenaMin.y, 0.0f), glm::vec3(Game::ArenaMax.x, Game::ArenaMax.y, 0.0f), glm::u8vec4(0xff, 0x00, 0xff, 0xff));
+		auto draw_text_color = [&](glm::vec2 const &at, std::string const &text, float H, glm::u8vec4 color) {
+			lines.draw_text(text,
+				glm::vec3(at.x, at.y, 0.0),
+				glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+				color);
+			float ofs = (1.0f / scale) / drawable_size.y;
+			lines.draw_text(text,
+				glm::vec3(at.x + ofs, at.y + ofs, 0.0),
+				glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+				color);
+		};
 
-		for (auto const &player : game.players) {
-			glm::u8vec4 col = glm::u8vec4(player.color.x*255, player.color.y*255, player.color.z*255, 0xff);
-			if (&player == &game.players.front()) {
-				//mark current player (which server sends first):
-				lines.draw(
-					glm::vec3(player.position + Game::PlayerRadius * glm::vec2(-0.5f,-0.5f), 0.0f),
-					glm::vec3(player.position + Game::PlayerRadius * glm::vec2( 0.5f, 0.5f), 0.0f),
-					col
-				);
-				lines.draw(
-					glm::vec3(player.position + Game::PlayerRadius * glm::vec2(-0.5f, 0.5f), 0.0f),
-					glm::vec3(player.position + Game::PlayerRadius * glm::vec2( 0.5f,-0.5f), 0.0f),
-					col
-				);
-			}
-			for (uint32_t a = 0; a < circle.size(); ++a) {
-				lines.draw(
-					glm::vec3(player.position + Game::PlayerRadius * circle[a], 0.0f),
-					glm::vec3(player.position + Game::PlayerRadius * circle[(a+1)%circle.size()], 0.0f),
-					col
-				);
+		uint8_t cur_player_idx = game.players.front().idx;
+
+		if(game.winner_idx != -1u){
+			if (game.winner_idx == cur_player_idx){
+				success = true;
+			}else{
+				success = false;
 			}
 
-			draw_text(player.position + glm::vec2(0.0f, -0.1f + Game::PlayerRadius), player.name, 0.09f);
+			if(success){
+				std::string str = "You Win!";
+				draw_text(glm::vec2{-0.25f,0.0f},str,0.09);
+			}else{
+				std::string str = "You Lose!";
+				draw_text(glm::vec2{-0.25f,0.0f},str,0.09);
+			}
+
+		}else{
+			lines.draw(glm::vec3(Game::ArenaMin.x, Game::ArenaMin.y, 0.0f), glm::vec3(Game::ArenaMin.x, Game::ArenaMax.y, 0.0f), glm::u8vec4(0xff, 0xff, 0xff, 0xff));
+			lines.draw(glm::vec3(Game::ArenaMax.x, Game::ArenaMin.y, 0.0f), glm::vec3(Game::ArenaMax.x, Game::ArenaMax.y, 0.0f), glm::u8vec4(0xff, 0xff, 0xff, 0xff));
+			lines.draw(glm::vec3(Game::ArenaMin.x, (Game::ArenaMin.y + Game::ArenaMax.y)/2, 0.0f),
+					glm::vec3(Game::ArenaMax.x, (Game::ArenaMin.y + Game::ArenaMax.y)/2, 0.0f),glm::u8vec4(0xff, 0xff, 0xff, 0xff));
+
+			for (auto const &player : game.players) {
+				glm::u8vec4 col = glm::u8vec4(player.color.x*255, player.color.y*255, player.color.z*255, 0xff);
+				if (&player == &game.players.front()) {
+					//mark current player (which server sends first):
+					lines.draw(
+						glm::vec3(player.position + Game::PlayerRadius * glm::vec2(-0.5f,-0.5f), 0.0f),
+						glm::vec3(player.position + Game::PlayerRadius * glm::vec2( 0.5f, 0.5f), 0.0f),
+						col
+					);
+					lines.draw(
+						glm::vec3(player.position + Game::PlayerRadius * glm::vec2(-0.5f, 0.5f), 0.0f),
+						glm::vec3(player.position + Game::PlayerRadius * glm::vec2( 0.5f,-0.5f), 0.0f),
+						col
+					);
+
+				}
+				for (uint32_t a = 0; a < circle.size(); ++a) {
+					lines.draw(
+						glm::vec3(player.position + Game::PlayerRadius * circle[a], 0.0f),
+						glm::vec3(player.position + Game::PlayerRadius * circle[(a+1)%circle.size()], 0.0f),
+						col
+					);
+				}
+
+				if(player.idx == 1){
+					// Player 1 line
+					lines.draw(glm::vec3(Game::ArenaMin.x, Game::ArenaMin.y, 0.0f), glm::vec3(Game::ArenaMax.x, Game::ArenaMin.y, 0.0f), col);
+				}else if(player.idx == 2){
+					// Player 2 line
+					lines.draw(glm::vec3(Game::ArenaMin.x, Game::ArenaMax.y, 0.0f), glm::vec3(Game::ArenaMax.x, Game::ArenaMax.y, 0.0f), col);
+				}
+
+				draw_text(player.position + glm::vec2(0.05f, -0.1f + Game::PlayerRadius), player.name, 0.09f);
+			}
+
+
+			for (auto const &ball : game.balls) {
+				glm::u8vec4 col = glm::u8vec4(ball.color.x*255, ball.color.y*255, ball.color.z*255, 0xff);
+				if (&ball == &game.balls.front()) {
+					//mark current player (which server sends first):
+					lines.draw(
+						glm::vec3(ball.position + Game::BallRadius * glm::vec2(-0.5f,-0.5f), 0.0f),
+						glm::vec3(ball.position + Game::BallRadius * glm::vec2( 0.5f, 0.5f), 0.0f),
+						col
+					);
+					lines.draw(
+						glm::vec3(ball.position + Game::BallRadius * glm::vec2(-0.5f, 0.5f), 0.0f),
+						glm::vec3(ball.position + Game::BallRadius * glm::vec2( 0.5f,-0.5f), 0.0f),
+						col
+					);
+				}
+				for (uint32_t a = 0; a < circle.size(); ++a) {
+					lines.draw(
+						glm::vec3(ball.position + Game::BallRadius * circle[a], 0.0f),
+						glm::vec3(ball.position + Game::BallRadius * circle[(a+1)%circle.size()], 0.0f),
+						col
+					);
+				}
+
+				//draw_text(ball.position + glm::vec2(0.0f, -0.1f + Game::PlayerRadius), player.name, 0.09f);
+			}
+
+
+			// Draw text for points
+			for(auto &player : game.players){
+				glm::u8vec4 col = glm::u8vec4(player.color.x*255, player.color.y*255, player.color.z*255, 0xff);
+				auto idx = player.idx;
+				auto score = player.score;
+				//printf("Player %d score : %d\n",idx,score);
+				auto location = (idx == 1) ? glm::vec2{-1.4f,0.0f} : glm::vec2{1.4f,0.0f};
+				draw_text_color( glm::vec2{location.x,location.y + 0.2},std::string{"P"} + std::to_string(idx),0.09,col);
+				draw_text_color(location,std::to_string(score),0.09,col);
+			}
 		}
+
+
+
+		
 	}
+
+
+
+	
+
+
+	
 	GL_ERRORS();
 }

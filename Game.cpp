@@ -8,6 +8,25 @@
 
 #include <glm/gtx/norm.hpp>
 
+Ball * Game::spawn_ball(){
+	balls.emplace_back();
+	Ball &ball = balls.back();
+
+	ball.position.x = glm::mix(ArenaMin.x + 2.0f * BallRadius, ArenaMax.x - 2.0f * BallRadius, 0.4f + 0.2f * mt() / float(mt.max()));
+	ball.position.y = glm::mix(ArenaMin.y + 2.0f * BallRadius, ArenaMax.y - 2.0f * BallRadius, 0.4f + 0.2f * mt() / float(mt.max()));
+
+	ball.velocity = glm::vec2{0.0f};
+
+	do {
+		ball.color.r = mt() / float(mt.max());
+		ball.color.g = mt() / float(mt.max());
+		ball.color.b = mt() / float(mt.max());
+	} while (ball.color == glm::vec3(0.0f));
+	ball.color = glm::normalize(ball.color);
+
+	return &ball;
+}
+
 void Player::Controls::send_controls_message(Connection *connection_) const {
 	assert(connection_);
 	auto &connection = *connection_;
@@ -75,15 +94,65 @@ bool Player::Controls::recv_controls_message(Connection *connection_) {
 //-----------------------------------------
 
 Game::Game() : mt(0x15466666) {
+	connected = std::make_pair(false,false);
 }
 
 Player *Game::spawn_player() {
 	players.emplace_back();
 	Player &player = players.back();
 
+	// Someone get disconnected
+	if(next_player_number > 2){
+		connected = std::make_pair(false,false);
+		for (auto &p : players){
+			if(p.idx == 1){
+				connected.first	= true;
+			}
+			else if(p.idx == 2){
+				connected.second = true;
+			}
+		}
+
+		if(connected.first == false){
+			player.idx = 1;
+			connected.first	= true;
+		}else if(connected.second == false){
+			player.idx = 2;
+			connected.second = true;
+		}
+
+	}else{
+		// Normal cases
+		player.idx = next_player_number;
+		if(next_player_number == 1){
+			connected.first	= true;
+		}else if(next_player_number == 2){
+			connected.second = true;
+		}
+	}
+
+	
+
+	if(player.idx == 1){
+		printf("Spawn player %d\n",player.idx);
+		// player.selfArenaMin.x = ArenaMin.x;
+		// player.selfArenaMin.y = ArenaMin.y;
+		// player.selfArenaMax.x = ArenaMax.x;
+		// player.selfArenaMax.y = (ArenaMax.y + ArenaMin.y) / 2;
+		player.position.x = glm::mix(ArenaMin1.x + 2.0f * PlayerRadius, ArenaMax1.x - 2.0f * PlayerRadius, 0.4f + 0.2f * mt() / float(mt.max()));
+		player.position.y = glm::mix(ArenaMin1.y + 2.0f * PlayerRadius, ArenaMax1.y - 2.0f * PlayerRadius, 0.4f + 0.2f * mt() / float(mt.max()));
+	}else{
+		// player.selfArenaMin.x = ArenaMin.x;
+		// player.selfArenaMin.y = (ArenaMax.y + ArenaMin.y) / 2;
+		// player.selfArenaMax.x = ArenaMax.x;
+		// player.selfArenaMax.y = ArenaMax.y;
+		printf("Spawn player %d\n",player.idx);
+		player.position.x = glm::mix(ArenaMin2.x + 2.0f * PlayerRadius, ArenaMax2.x - 2.0f * PlayerRadius, 0.4f + 0.2f * mt() / float(mt.max()));
+		player.position.y = glm::mix(ArenaMin2.y + 2.0f * PlayerRadius, ArenaMax2.y - 2.0f * PlayerRadius, 0.4f + 0.2f * mt() / float(mt.max()));
+	}
+
 	//random point in the middle area of the arena:
-	player.position.x = glm::mix(ArenaMin.x + 2.0f * PlayerRadius, ArenaMax.x - 2.0f * PlayerRadius, 0.4f + 0.2f * mt() / float(mt.max()));
-	player.position.y = glm::mix(ArenaMin.y + 2.0f * PlayerRadius, ArenaMax.y - 2.0f * PlayerRadius, 0.4f + 0.2f * mt() / float(mt.max()));
+
 
 	do {
 		player.color.r = mt() / float(mt.max());
@@ -92,7 +161,10 @@ Player *Game::spawn_player() {
 	} while (player.color == glm::vec3(0.0f));
 	player.color = glm::normalize(player.color);
 
-	player.name = "Player " + std::to_string(next_player_number++);
+
+	player.name = "P" + std::to_string(player.idx);
+
+	next_player_number ++;
 
 	return &player;
 }
@@ -150,9 +222,20 @@ void Game::update(float elapsed) {
 		p.controls.jump.downs = 0;
 	}
 
+	static float friction_factor = 0.5;
+
+	for (auto &b: balls){
+		//glm::vec2 dir = glm::normalize(b.velocity);
+		glm::vec2 friction = -b.velocity * friction_factor;
+		b.position += b.velocity * elapsed + friction * elapsed * elapsed * 0.5f;
+		b.position += b.velocity * elapsed;
+		b.velocity += friction * elapsed;
+	}
+
 	//collision resolution:
 	for (auto &p1 : players) {
 		//player/player collisions:
+		// No need to worry about this
 		for (auto &p2 : players) {
 			if (&p1 == &p2) break;
 			glm::vec2 p12 = p2.position - p1.position;
@@ -166,22 +249,140 @@ void Game::update(float elapsed) {
 			p2.velocity += 0.5f * delta_v12;
 			p1.velocity -= 0.5f * delta_v12;
 		}
+
+		glm::vec2 curArenaMin{0.0f};
+		glm::vec2 curArenaMax{0.0f};
+
+		if(p1.idx == 1){
+			curArenaMin = ArenaMin1;
+			curArenaMax = ArenaMax1;
+		}else if(p1.idx == 2){
+			curArenaMin = ArenaMin2;
+			curArenaMax = ArenaMax2;
+		}else{
+			std::runtime_error("What index??");
+		}
+
 		//player/arena collisions:
-		if (p1.position.x < ArenaMin.x + PlayerRadius) {
-			p1.position.x = ArenaMin.x + PlayerRadius;
+		if (p1.position.x < curArenaMin.x + PlayerRadius) {
+			p1.position.x = curArenaMin.x + PlayerRadius;
 			p1.velocity.x = std::abs(p1.velocity.x);
 		}
-		if (p1.position.x > ArenaMax.x - PlayerRadius) {
-			p1.position.x = ArenaMax.x - PlayerRadius;
+		if (p1.position.x > curArenaMax.x - PlayerRadius) {
+			p1.position.x = curArenaMax.x - PlayerRadius;
 			p1.velocity.x =-std::abs(p1.velocity.x);
 		}
-		if (p1.position.y < ArenaMin.y + PlayerRadius) {
-			p1.position.y = ArenaMin.y + PlayerRadius;
+		if (p1.position.y < curArenaMin.y + PlayerRadius) {
+			p1.position.y = curArenaMin.y + PlayerRadius;
 			p1.velocity.y = std::abs(p1.velocity.y);
 		}
-		if (p1.position.y > ArenaMax.y - PlayerRadius) {
-			p1.position.y = ArenaMax.y - PlayerRadius;
+		if (p1.position.y > curArenaMax.y - PlayerRadius) {
+			p1.position.y = curArenaMax.y - PlayerRadius;
 			p1.velocity.y =-std::abs(p1.velocity.y);
+		}
+	}
+
+	for (auto &b : balls){
+		// Collision with one of the player
+		for(auto &p : players){
+			glm::vec2 l = p.position - b.position;
+			float len2 = glm::length2(l);
+			if(len2 > (PlayerRadius + BallRadius) * (PlayerRadius + BallRadius)) continue;
+			if(len2 == 0.0f) continue;
+			glm::vec2 dir = l / std::sqrt(len2);
+			glm::vec2 v = p.velocity - b.velocity;
+			glm::vec2 delta_v = dir * glm::max(0.0f, -1.75f * glm::dot(dir,v));
+			p.velocity += 0.5f * delta_v;
+			b.velocity -= 0.5f * delta_v;
+		}
+
+		if (b.position.x < ArenaMin.x + PlayerRadius) {
+			b.position.x = ArenaMin.x + PlayerRadius;
+			b.velocity.x = std::abs(b.velocity.x);
+		}
+		if (b.position.x > ArenaMax.x - PlayerRadius) {
+			b.position.x = ArenaMax.x - PlayerRadius;
+			b.velocity.x =-std::abs(b.velocity.x);
+		}
+
+
+		auto add_score = [&](uint8_t idx){
+			for(auto &p : players){
+				if(p.idx == idx){
+					p.score += 1;
+				}
+			}
+		};
+
+		// idx means who goals
+		auto reset_ball = [&](uint8_t idx){
+			// let the ball respawn to opposite player side
+			glm::vec2 curArenaMin{0.0f};
+			glm::vec2 curArenaMax{0.0f};
+
+			if(idx==1){
+				curArenaMin = ArenaMin2;
+				curArenaMax = ArenaMax2;
+			}else if(idx == 2){
+				curArenaMin = ArenaMin1;
+				curArenaMax = ArenaMax1;
+			}else{
+				std::runtime_error("!");
+			}
+
+			auto touch_player = [&](Ball b, uint8_t idx)->bool{
+				Player player = players.front();
+				for(auto &p : players){
+					if(p.idx != idx){
+						player = p;
+						break;
+					}
+				}
+
+				glm::vec2 l = player.position - b.position;
+				float len2 = glm::length2(l);
+				if(len2 > ((PlayerRadius + BallRadius) * (PlayerRadius + BallRadius) + 0.05)) return false;
+				else return true;
+
+			};
+
+			auto &b = balls.front();
+			b.velocity = glm::vec2{0.0f};
+			do {
+				b.position.x = glm::mix(curArenaMin.x + 2.0f * BallRadius, curArenaMax.x - 2.0f * BallRadius, 0.4f + 0.2f * mt() / float(mt.max()));
+				b.position.y = glm::mix(curArenaMin.y + 2.0f * BallRadius, curArenaMax.y - 2.0f * BallRadius, 0.4f + 0.2f * mt() / float(mt.max()));
+			} while(touch_player(b,idx));
+			
+			do {
+				b.color.r = mt() / float(mt.max());
+				b.color.g = mt() / float(mt.max());
+				b.color.b = mt() / float(mt.max());
+			} while (b.color == glm::vec3(0.0f));
+			b.color = glm::normalize(b.color);
+		};
+
+		// Goal Situation
+		// player2 scores
+		if (b.position.y < ArenaMin.y + PlayerRadius) {
+			b.position.y = ArenaMin.y + PlayerRadius;
+			b.velocity.y = std::abs(b.velocity.y);
+			add_score(2);
+			reset_ball(2);
+		}
+		// player1 scores
+		if (b.position.y > ArenaMax.y - PlayerRadius) {
+			b.position.y = ArenaMax.y - PlayerRadius;
+			b.velocity.y =-std::abs(b.velocity.y);
+			add_score(1);
+			reset_ball(1);
+		}
+	}
+
+	// Check if any player wins
+	for(auto &p: players){
+		if(p.score == 5){
+			winner_idx = p.idx;
+			break;
 		}
 	}
 
@@ -205,12 +406,20 @@ void Game::send_state_message(Connection *connection_, Player *connection_player
 		connection.send(player.position);
 		connection.send(player.velocity);
 		connection.send(player.color);
+		connection.send(player.score);
+		connection.send(player.idx);
 	
 		//NOTE: can't just 'send(name)' because player.name is not plain-old-data type.
 		//effectively: truncates player name to 255 chars
 		uint8_t len = uint8_t(std::min< size_t >(255, player.name.size()));
 		connection.send(len);
 		connection.send_buffer.insert(connection.send_buffer.end(), player.name.begin(), player.name.begin() + len);
+	};
+
+	auto send_ball = [&](Ball const &ball){
+		connection.send(ball.position);
+		connection.send(ball.velocity);
+		connection.send(ball.color);
 	};
 
 	//player count:
@@ -220,6 +429,13 @@ void Game::send_state_message(Connection *connection_, Player *connection_player
 		if (&player == connection_player) continue;
 		send_player(player);
 	}
+
+	connection.send(uint8_t(balls.size()));
+	for (auto const &ball : balls){
+		send_ball(ball);
+	}
+
+	connection.send(winner_idx);
 
 	//compute the message size and patch into the message header:
 	uint32_t size = uint32_t(connection.send_buffer.size() - mark);
@@ -260,6 +476,8 @@ bool Game::recv_state_message(Connection *connection_) {
 		read(&player.position);
 		read(&player.velocity);
 		read(&player.color);
+		read(&player.score);
+		read(&player.idx);
 		uint8_t name_len;
 		read(&name_len);
 		//n.b. would probably be more efficient to directly copy from recv_buffer, but I think this is clearer:
@@ -270,6 +488,18 @@ bool Game::recv_state_message(Connection *connection_) {
 			player.name += c;
 		}
 	}
+	balls.clear();
+	uint8_t ball_count;
+	read(&ball_count);
+	for (uint8_t i = 0; i < ball_count; ++i) {
+		balls.emplace_back();
+		Ball &ball = balls.back();
+		read(&ball.position);
+		read(&ball.velocity);
+		read(&ball.color);
+	}
+
+	read(&winner_idx);
 
 	if (at != size) throw std::runtime_error("Trailing data in state message.");
 

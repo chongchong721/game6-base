@@ -1,20 +1,20 @@
-# (TODO: your game's title)
+# Air Hockey
 
-Author: (TODO: your name)
+Author: Yuan Meng
 
-Design: (TODO: In two sentences or fewer, describe what is new and interesting about your game.)
+Design: When I submitted the design, I didn't look at the base code yet. After that I noticed that the base code itself is very similar to a air hockey game so I just made some modifications based on the base code. I didn't change the collison/velocity part as I found out this could be directly applied to air hockey.
 
-Networking: (TODO: How does your game implement client/server multiplayer? What messages are transmitted? Where in the code?)
+Networking: Except from the player position and velocity, I need to transmit player index, ball location, player score and winning status through the Internet. All updates are computed in the server.
 
 Screen Shot:
 
-![Screen Shot](screenshot.png)
+![Screen Shot](Screenshot.png)
 
 How To Play:
 
-(TODO: describe the controls and (if needed) goals/strategy.)
+WASD to move, hit the ball
 
-Sources: (TODO: list a source URL for any assets you did not create yourself. Make sure you have a license for the asset.)
+Sources: base code itself
 
 This game was built with [NEST](NEST.md).
 
